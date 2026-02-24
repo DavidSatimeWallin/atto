@@ -58,7 +58,7 @@ Atto is based on the public domain code of Anthony Howe's editor (commonly known
     C-G	  Abort (at prompts)
     C-H   backspace
     C-I   handle-tab
-    C-J   newline
+    C-J   jump (see Jump Command)
     C-K   kill-to-eol
     C-L   refresh display
     C-M   Carrage Return
@@ -85,6 +85,7 @@ Atto is based on the public domain code of Anthony Howe's editor (commonly known
 
     ^X^C  Exit. Any unsaved files will require confirmation.
     ^X^F  Find file; read into a new buffer created from filename.
+    ^Xz   Find file using fzf (requires fzf installed at /usr/bin/fzf)
     ^X^S  Save current buffer to disk, using the buffer's filename as the name of
     ^X^W  Write current buffer to disk. Type in a new filename at the prompt to
     ^Xi   Insert file at point
@@ -109,6 +110,28 @@ Atto is based on the public domain code of Anthony Howe's editor (commonly known
     Ctrl+Down    end of file
     Ctrk+Left    Page Down
     Ctrl+Right   Page Up
+
+### Jump Command
+
+    C-J  prompts for a jump target and moves the cursor accordingly.
+
+Three input formats are supported:
+
+    18    Jump to absolute line 18
+    20d   Jump 20 lines down from the current line
+    15u   Jump 15 lines up from the current line
+
+### Relative Line Numbers
+
+Each line in the buffer is prefixed with a line number gutter. The current line
+shows its absolute line number; all other lines show their distance from the
+current line. The gutter width adjusts automatically to fit the total line count
+of the buffer.
+
+### Syntax Highlighting
+
+Comments are displayed in bold blue. All other text uses the terminal's default
+colours. Both `//` line comments and `/* */` block comments are recognised.
 
 ### Copying and moving
 
