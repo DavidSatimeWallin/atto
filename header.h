@@ -168,6 +168,7 @@ extern void writefile(void);
 extern void savebuffer(void);
 extern void showpos(void);
 extern void killtoeol(void);
+extern void jump(void);
 extern void gotoline(void);
 extern void search(void);
 extern void query_replace(void);

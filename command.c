@@ -165,6 +165,30 @@ void delete()
 	}
 }
 
+void jump()
+{
+	int n, curline, lastline;
+	char dir = 0;
+	point_t p;
+
+	if (!getinput("Jump (20d, 15u, 18): ", temp, STRBUF_S, F_CLEAR))
+		return;
+
+	sscanf(temp, "%d%c", &n, &dir);
+	if (dir == 'd' || dir == 'u') {
+		get_line_stats(&curline, &lastline);
+		n = dir == 'd' ? curline + n : curline - n;
+	}
+
+	p = line_to_point(n);
+	if (p != -1) {
+		curbp->b_point = p;
+		msg("Line %d", n);
+	} else {
+		msg("Line %d not found", n);
+	}
+}
+
 void gotoline()
 {
 	int line;

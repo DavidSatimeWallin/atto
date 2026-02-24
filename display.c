@@ -2,6 +2,31 @@
 
 #include "header.h"
 
+static int gutter_width = 0;
+
+static int num_digits(int n)
+{
+	int d = 1;
+	while (n >= 10) { n /= 10; d++; }
+	return d;
+}
+
+static void compute_line_info(buffer_t *bp, int *page_line, int *cursor_line, int *last_line)
+{
+	point_t end_p = pos(bp, bp->b_ebuf);
+	point_t p;
+	int line = 1;
+	*page_line = 1;
+	*cursor_line = 1;
+	for (p = 0; p < end_p; p++) {
+		if (p == bp->b_page)  *page_line = line;
+		if (p == bp->b_point) *cursor_line = line;
+		if (*ptr(bp, p) == '\n') line++;
+	}
+	*last_line = line;
+	if (bp->b_point >= end_p) *cursor_line = *last_line;
+}
+
 /* Reverse scan for start of logical line containing offset */
 point_t lnstart(buffer_t *bp, register point_t off)
 {
@@ -24,14 +49,14 @@ point_t segstart(buffer_t *bp, point_t start, point_t finish)
 		if (*p == '\n') {
 			c = 0;
 			start = scan + 1;
-		} else if (COLS <= c) {
+		} else if ((COLS - gutter_width) <= c) {
 			c = 0;
 			start = scan;
 		}
 		scan += utf8_size(*ptr(bp,scan));
 		c += *p == '\t' ? 8 - (c & 7) : 1;
 	}
-	return (c < COLS ? start : finish);
+	return (c < (COLS - gutter_width) ? start : finish);
 }
 
 /* Forward scan for start of logical line segment following 'finish' */
@@ -43,7 +68,7 @@ point_t segnext(buffer_t *bp, point_t start, point_t finish)
 	point_t scan = segstart(bp, start, finish);
 	for (;;) {
 		p = ptr(bp, scan);
-		if (bp->b_ebuf <= p || COLS <= c)
+		if (bp->b_ebuf <= p || (COLS - gutter_width) <= c)
 			break;
 		scan += utf8_size(*ptr(bp,scan));
 		if (*p == '\n')
@@ -83,12 +108,26 @@ point_t lncolumn(buffer_t *bp, point_t offset, int column)
 	return (offset);
 }
 
+static void print_gutter(int row, int line_no, int cursor_line, int gutter_w, int new_logical_line)
+{
+	attrset(A_NORMAL);
+	if (new_logical_line)
+		mvprintw(row, 0, "%*d ", gutter_w - 1, line_no == cursor_line ? line_no : abs(line_no - cursor_line));
+	else
+		mvprintw(row, 0, "%*s ", gutter_w - 1, "");
+}
+
 void display(window_t *wp, int flag)
 {
 	char_t *p;
 	int i, j, k, nch;
+	int page_line, cursor_line, last_line, line_no, at_new_lline, gutter_w;
 	buffer_t *bp = wp->w_bufp;
-	
+
+	compute_line_info(bp, &page_line, &cursor_line, &last_line);
+	gutter_w = num_digits(last_line) + 1;
+	gutter_width = gutter_w;
+
 	/* find start of screen, handle scroll up off page or top of file  */
 	/* point is always within b_page and b_epage */
 	if (bp->b_point < bp->b_page)
@@ -117,9 +156,13 @@ void display(window_t *wp, int flag)
 	bp->b_epage = bp->b_page;
 	set_parse_state(bp, bp->b_epage); /* are we in a multline comment ? */
 
-	/* paint screen from top of page until we hit maxline */ 
+	line_no = page_line;
+	at_new_lline = 1;
+	print_gutter(i, line_no, cursor_line, gutter_w, 1);
+
+	/* paint screen from top of page until we hit maxline */
 	while (1) {
-		/* reached point - store the cursor position */
+		/* reached point - store the cursor position (text col, gutter offset added at move) */
 		if (bp->b_point == bp->b_epage) {
 			bp->b_row = i;
 			bp->b_col = j;
@@ -133,7 +176,7 @@ void display(window_t *wp, int flag)
 			if ( nch > 1) {
 				wchar_t c;
 				/* reset if invalid multi-byte character */
-				if (mbtowc(&c, (char*)p, 6) < 0) mbtowc(NULL, NULL, 0); 
+				if (mbtowc(&c, (char*)p, 6) < 0) mbtowc(NULL, NULL, 0);
 				j += wcwidth(c) < 0 ? 1 : wcwidth(c);
 				display_utf8(bp, *p, nch);
 			} else if (isprint(*p) || *p == '\t' || *p == '\n') {
@@ -146,27 +189,29 @@ void display(window_t *wp, int flag)
 				addstr(ctrl);
 			}
 		}
-		if (*p == '\n' || COLS <= j) {
-			j -= COLS;
+		if (*p == '\n' || (COLS - gutter_w) <= j) {
+			j -= (COLS - gutter_w);
 			if (j < 0)
 				j = 0;
 			++i;
+			if (*p == '\n') { line_no++; at_new_lline = 1; } else { at_new_lline = 0; }
+			if (i < wp->w_top + wp->w_rows)
+				print_gutter(i, line_no, cursor_line, gutter_w, at_new_lline);
 		}
 		bp->b_epage = bp->b_epage + nch;
 	}
 
 	/* replacement for clrtobot() to bottom of window */
-	for (k=i; k < wp->w_top + wp->w_rows; k++) {
-		move(k, j); /* clear from very last char not start of line */
+	for (k = i; k < wp->w_top + wp->w_rows; k++) {
+		move(k, k == i ? gutter_w + j : 0);
 		clrtoeol();
-		j = 0; /* thereafter start of line */
 	}
 
 	b2w(wp); /* save buffer stuff on window */
 	modeline(wp);
 	if (wp == curwp && flag) {
 		dispmsg();
-		move(bp->b_row, bp->b_col); /* set cursor */
+		move(bp->b_row, bp->b_col + gutter_w); /* set cursor, offset past gutter */
 		refresh();
 	}
 	wp->w_update = FALSE;
@@ -251,7 +296,7 @@ void update_display()
 	/* now display our window and buffer */
 	w2b(curwp);
 	dispmsg();
-	move(curwp->w_row, curwp->w_col); /* set cursor for curwp */
+	move(curwp->w_row, curwp->w_col + gutter_width); /* set cursor for curwp, offset past gutter */
 	refresh();
 	bp->b_psize = bp->b_size;  /* now safe to save previous size for next time */
 }
