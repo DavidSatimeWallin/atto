@@ -10,7 +10,7 @@ keymap_t keymap[] = {
 	{"C-e end-of-line          ", "\x05", lnend },
 	{"C-f foward-char          ", "\x06", right },
 	{"C-h backspace            ", "\x08", backsp },
-	{"C-j jump                 ", "\x0A", jump },
+	{"esc j jump               ", "\x1B\x6A", jump },
 	{"C-k kill-to-eol          ", "\x0B", killtoeol },
 	{"C-l refresh              ", "\x0C", redraw },
 	{"C-n next-line            ", "\x0E", down },
