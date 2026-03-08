@@ -161,6 +161,7 @@ void display(window_t *wp, int flag)
 	print_gutter(i, line_no, cursor_line, gutter_w, 1);
 
 	/* paint screen from top of page until we hit maxline */
+	point_t func_end = -1;
 	while (1) {
 		/* reached point - store the cursor position (text col, gutter offset added at move) */
 		if (bp->b_point == bp->b_epage) {
@@ -180,7 +181,27 @@ void display(window_t *wp, int flag)
 				j += wcwidth(c) < 0 ? 1 : wcwidth(c);
 				display_utf8(bp, *p, nch);
 			} else if (isprint(*p) || *p == '\t' || *p == '\n') {
-				attrset(parse_text(bp, bp->b_epage) == ID_COMMENT ? A_BOLD | COLOR_PAIR(ID_COMMENT) : A_NORMAL);
+				int syn = parse_text(bp, bp->b_epage);
+				int in_func = 0;
+				if (syn != ID_COMMENT && bp->b_epage >= func_end) {
+					func_end = -1;
+					if (isalpha(*p) || *p == '_') {
+						point_t scan = bp->b_epage;
+						char_t *sp;
+						while ((sp = ptr(bp, scan)) < bp->b_ebuf && (isalnum(*sp) || *sp == '_'))
+							scan++;
+						if (sp < bp->b_ebuf && *sp == '(')
+							func_end = scan;
+					}
+				}
+				if (syn != ID_COMMENT && func_end > 0 && bp->b_epage < func_end)
+					in_func = 1;
+				if (syn == ID_COMMENT)
+					attrset(A_BOLD | COLOR_PAIR(ID_COMMENT));
+				else if (in_func)
+					attrset(A_BOLD);
+				else
+					attrset(A_NORMAL);
 				if (*p == '\t') {
 					int tw = 8 - (j & 7);
 					j += tw;

@@ -188,6 +188,32 @@ static void scan_buffer(buffer_t *bp, lang_t lang)
 	}
 }
 
+static int strcasestr_match(const char *haystack, const char *needle)
+{
+	int hlen = strlen(haystack);
+	int nlen = strlen(needle);
+	for (int i = 0; i <= hlen - nlen; i++) {
+		int j;
+		for (j = 0; j < nlen; j++)
+			if (tolower((unsigned char)haystack[i+j]) != tolower((unsigned char)needle[j]))
+				break;
+		if (j == nlen) return 1;
+	}
+	return 0;
+}
+
+static int matched[MAX_FUNCS];
+static int nmatched;
+
+static void refilter(const char *filter)
+{
+	nmatched = 0;
+	for (int i = 0; i < nfuncs; i++) {
+		if (filter[0] == '\0' || strcasestr_match(funcs[i].text, filter))
+			matched[nmatched++] = i;
+	}
+}
+
 void funclist()
 {
 	lang_t lang = detect_language(curbp->b_fname);
@@ -205,17 +231,22 @@ void funclist()
 
 	int selected = 0;
 	int top_item = 0;
-	int max_rows = LINES - 2;
+	int max_rows = LINES - 3;
 	int c, i;
 	char title[256];
 	char display_line[1024];
+	char filter[STRBUF_M];
+	int flen = 0;
+	filter[0] = '\0';
+
+	refilter(filter);
 
 	for (;;) {
 		/* title bar */
 		attron(A_REVERSE);
 		move(0, 0);
 		snprintf(title, sizeof(title),
-			 " Functions (%d) [Enter=jump Esc=cancel]", nfuncs);
+			 " Functions (%d/%d) [Enter=jump Esc=cancel]", nmatched, nfuncs);
 		addstr(title);
 		for (i = (int)strlen(title); i < COLS; i++)
 			addch(' ');
@@ -230,10 +261,11 @@ void funclist()
 			int idx = top_item + i;
 			move(i + 1, 0);
 			clrtoeol();
-			if (idx < nfuncs) {
+			if (idx < nmatched) {
+				int fi = matched[idx];
 				int maxw = COLS < (int)sizeof(display_line) ? COLS : (int)sizeof(display_line) - 1;
 				snprintf(display_line, maxw, " %4d: %s",
-					 funcs[idx].line_no, funcs[idx].text);
+					 funcs[fi].line_no, funcs[fi].text);
 				if (idx == selected)
 					attron(A_REVERSE);
 				addstr(display_line);
@@ -246,6 +278,15 @@ void funclist()
 			}
 		}
 
+		/* search bar */
+		move(LINES - 2, 0);
+		attron(A_REVERSE);
+		snprintf(display_line, COLS, " Search: %s", filter);
+		addstr(display_line);
+		for (i = (int)strlen(display_line); i < COLS; i++)
+			addch(' ');
+		attroff(A_REVERSE);
+
 		move(LINES - 1, 0);
 		clrtoeol();
 		refresh();
@@ -257,7 +298,6 @@ void funclist()
 			int c2 = getch();
 			timeout(-1);
 			if (c2 == ERR) {
-				/* ESC alone — cancel */
 				redraw();
 				return;
 			}
@@ -268,13 +308,13 @@ void funclist()
 					if (selected > 0) selected--;
 					break;
 				case 0x42: /* down */
-					if (selected < nfuncs - 1) selected++;
+					if (selected < nmatched - 1) selected++;
 					break;
 				case 0x48: /* home */
 					selected = 0;
 					break;
 				case 0x46: /* end */
-					selected = nfuncs - 1;
+					selected = nmatched - 1;
 					break;
 				case 0x35: /* pgup: ESC [ 5 ~ */
 					getch();
@@ -284,23 +324,20 @@ void funclist()
 				case 0x36: /* pgdn: ESC [ 6 ~ */
 					getch();
 					selected += max_rows;
-					if (selected >= nfuncs) selected = nfuncs - 1;
+					if (selected >= nmatched) selected = nmatched - 1;
 					break;
 				}
 			} else if (c2 == 0x4f) {
 				int c3 = getch();
-				if (c3 == 0x48) selected = 0;          /* home */
-				else if (c3 == 0x46) selected = nfuncs - 1; /* end */
+				if (c3 == 0x48) selected = 0;
+				else if (c3 == 0x46) selected = nmatched - 1;
 			} else if (c2 == 0x76) {
-				/* esc v — page up */
 				selected -= max_rows;
 				if (selected < 0) selected = 0;
 			} else if (c2 == 0x3c) {
-				/* esc < — top */
 				selected = 0;
 			} else if (c2 == 0x3e) {
-				/* esc > — bottom */
-				selected = nfuncs - 1;
+				selected = nmatched - 1;
 			}
 			continue;
 		}
@@ -308,31 +345,48 @@ void funclist()
 		switch (c) {
 		case '\n':
 		case '\r':
-		{
-			point_t p = line_to_point(funcs[selected].line_no);
-			if (p != -1) {
-				curbp->b_point = p;
-				center_cursor();
-				msg("Line %d: %s", funcs[selected].line_no, funcs[selected].text);
+			if (nmatched > 0) {
+				int fi = matched[selected];
+				point_t p = line_to_point(funcs[fi].line_no);
+				if (p != -1) {
+					curbp->b_point = p;
+					center_cursor();
+					msg("Line %d: %s", funcs[fi].line_no, funcs[fi].text);
+				}
 			}
 			redraw();
 			return;
-		}
 		case 0x10: /* C-p */
-		case 'k':
 			if (selected > 0) selected--;
 			break;
 		case 0x0e: /* C-n */
-		case 'j':
-			if (selected < nfuncs - 1) selected++;
+			if (selected < nmatched - 1) selected++;
 			break;
 		case 0x16: /* C-v — page down */
 			selected += max_rows;
-			if (selected >= nfuncs) selected = nfuncs - 1;
+			if (selected >= nmatched) selected = nmatched - 1;
 			break;
 		case 0x07: /* C-g — cancel */
 			redraw();
 			return;
+		case 0x7f: /* del */
+		case 0x08: /* backspace */
+			if (flen > 0) {
+				filter[--flen] = '\0';
+				refilter(filter);
+				selected = 0;
+				top_item = 0;
+			}
+			break;
+		default:
+			if (c >= 32 && c < 127 && flen < STRBUF_M - 2) {
+				filter[flen++] = c;
+				filter[flen] = '\0';
+				refilter(filter);
+				selected = 0;
+				top_item = 0;
+			}
+			break;
 		}
 	}
 }
