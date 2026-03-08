@@ -180,9 +180,15 @@ void display(window_t *wp, int flag)
 				j += wcwidth(c) < 0 ? 1 : wcwidth(c);
 				display_utf8(bp, *p, nch);
 			} else if (isprint(*p) || *p == '\t' || *p == '\n') {
-				j += *p == '\t' ? 8-(j&7) : 1;
 				attrset(parse_text(bp, bp->b_epage) == ID_COMMENT ? A_BOLD | COLOR_PAIR(ID_COMMENT) : A_NORMAL);
-				addch(*p);
+				if (*p == '\t') {
+					int tw = 8 - (j & 7);
+					j += tw;
+					while (tw--) addch(' ');
+				} else {
+					j++;
+					addch(*p);
+				}
 			} else {
 				const char *ctrl = unctrl(*p);
 				j += (int) strlen(ctrl);
