@@ -26,7 +26,6 @@ This software is provided as-is, with no warranty of any kind. Use this editor a
 - **Go to definition** -- jump to a C function definition with `Esc ,`
 - **Function list** -- browse and jump to functions in the current buffer with `Esc l`
 - **Jump command** -- jump to an absolute line or move up/down by a relative number of lines
-- **Smart auto-indentation** -- automatic indentation for newlines, `{` and `}` braces
 - **Overwrite mode** -- toggle between insert and overwrite with the Ins key
 - **Buffer-gap architecture** -- efficient internal representation that keeps the entire codebase small and fast
 

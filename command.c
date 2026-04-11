@@ -215,47 +215,6 @@ void wright()
 		++curbp->b_point;
 }
 
-static int count_leading_tabs(void)
-{
-	point_t line_start = lnstart(curbp, curbp->b_point);
-	int tabs = 0;
-	char_t *p = ptr(curbp, line_start);
-	
-	while (p < ptr(curbp, curbp->b_point) || (p == ptr(curbp, curbp->b_point) && p < curbp->b_egap)) {
-		if (*p == '\t') {
-			tabs++;
-			p++;
-		} else if (*p == ' ') {
-			tabs++;
-			p++;
-		} else {
-			break;
-		}
-	}
-	return tabs;
-}
-
-static int count_brace_indent(void)
-{
-	int depth = 0;
-	point_t p = 0;
-	point_t end = curbp->b_point;
-	char_t *cp;
-	
-	while (p < end) {
-		cp = ptr(curbp, p);
-		if (*cp == '{') {
-			depth++;
-		} else if (*cp == '}') {
-			depth--;
-		}
-		p++;
-	}
-	
-	if (depth < 0) depth = 0;
-	return depth;
-}
-
 static void insert_char(char c)
 {
 	assert(curbp->b_gap <= curbp->b_egap);
@@ -277,36 +236,6 @@ static void insert_char(char c)
 
 void insert()
 {
-	if (*input == '\r' || *input == '\n') {
-		int tabs = count_leading_tabs();
-		insert_char('\n');
-		for (int i = 0; i < tabs; i++) {
-			insert_char('\t');
-		}
-		return;
-	}
-	
-	if (*input == '{') {
-		insert_char('{');
-		int tabs = count_leading_tabs();
-		insert_char('\n');
-		for (int i = 0; i < tabs + 1; i++) {
-			insert_char('\t');
-		}
-		return;
-	}
-	
-	if (*input == '}') {
-		int tabs = count_brace_indent();
-		if (tabs > 0) tabs--;
-		insert_char('\n');
-		for (int i = 0; i < tabs; i++) {
-			insert_char('\t');
-		}
-		insert_char('}');
-		return;
-	}
-	
 	insert_char(*input);
 }
 

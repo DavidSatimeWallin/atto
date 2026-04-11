@@ -3,7 +3,6 @@
 ## Val v2.1.0 20 Mar 2026
 * added keyboard shortcuts help browser (C-x h) - opens shortcuts in a temp file buffer
 * added indent-to-tabs conversion (C-x r i) - converts space indentation to tabs
-* added smart auto-indentation - newlines, `{` and `}` auto-indent based on context
 * bumped version from v2.00 to v2.1.0
 
 ## Val v2.00 19 Mar 2026
